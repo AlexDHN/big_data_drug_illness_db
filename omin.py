@@ -14,7 +14,7 @@ def loading_omim():
             elif line == "*FIELD* CS\n":
                 aux = 2  # state in which we know that we will read signs and symptoms of the illness
             elif aux == 1:
-                illness = line[8:]
+                illness = line
                 illness = re.sub(r"\n", "", illness)
                 aux = 0
             elif aux == 2:

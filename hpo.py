@@ -1,7 +1,18 @@
 import re
+import sqlite3 as sql
 
 
-def loading_hpo():
+def loading_hpo_annotations():
+    con = sql.connect('data/HPO/hpo_annotations.sqlite')  # we are now connected to the database
+    cur = con.cursor()
+    cur.execute('SELECT sign_id,disease_label FROM phenotype_annotation')
+    tuple_hpo_annotations = cur.fetchall()
+    cur.close()
+    con.close()
+    return tuple_hpo_annotations
+
+
+def loading_hpo_obo():
     print("Start loading HPO\n")
     tuple_hpo = []  # Tuple in which there will be id with symptoms and synonyms
     id_syno = ""
