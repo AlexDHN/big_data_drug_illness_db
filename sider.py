@@ -54,7 +54,7 @@ con = mysql.connector.connect(user='gmd-read',
                               database='gmd')
 
 cur = con.cursor()
-cur.execute('SELECT * from meddra_all_se')
-# cur.execute('SELECT * from meddra_all_indications')
+#  cur.execute('SELECT * from meddra_all_se')
+cur.execute('SELECT * from meddra_all_indications')
 exemple = cur.fetchall()
 cur.close()

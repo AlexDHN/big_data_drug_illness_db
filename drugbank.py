@@ -2,9 +2,9 @@
 from lxml import etree
 
 
-def loading_drugbank():  # We are using tuples to use pair RDD in PySpark
+def loading_drugbank(path):  # We are using tuples to use pair RDD in PySpark
     print("Start loading DrugBank\n")
-    tree = etree.parse("data/DRUGBANK/drugbank.xml")  # load xml file as ElementTree
+    tree = etree.parse(path + "/DRUGBANK/drugbank.xml")  # load xml file as ElementTree
     root = tree.getroot()
     tuple_drugbank_indication = []  # List in which there will be tuple drug with indication
     tuple_drug_bank_toxicity = []  # List in which there will be tuple drug with toxicity

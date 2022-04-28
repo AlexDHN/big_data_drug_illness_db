@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+
+{% block content%}
+
+    {% if thing%}
+
+        {%if andor%}
+
+        <nav class="navbar navbar-light" style="background-color: #e3f2fd;">
+            <div class="container-fluid">
+            <a class="navbar-brand" href="{{url_for('homebis')}}">MedSearch</a>
+            <form class="d-flex" method="POST">
+                {{form.hidden_tag()}}
+                {{form.search(class="form-control")}}
+
+                {{form.submit(class="btn btn-validate")}}
+
+            </form>
+            </div>
+
+        </nav>
+
+
+        <br>
+        <br>
+        <br>
+        <h1 align="center"> Results for : {{thing}} </h1>
+        <br/><br/><br/>
+
+        <div class="container-ben">
+
+            <table class="table" style="width:50%">
+                <thead class="thead-dark">
+                <tr>
+                    <th scope="col">Causing diseases</th>
+                </tr>
+                </thead>
+                <tbody>
+                    {% for dis in dis_cause %}
+                            <th scope="row">{{dis}}</th>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <table class="table" style="width:50%">
+                <thead class="thead-dark">
+                <tr>
+                    <th scope="col">Causing drugs</th>
+                </tr>
+                </thead>
+                <tbody>
+                    {% for drug in drug_cause %}
+                        <tr>
+                            <th scope="row">{{drug}}</th>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <table class="table" style="width:50%">
+                <thead class="thead-dark">
+                <tr>
+                    <th scope="col">Curing drugs</th>
+                </tr>
+                </thead>
+                <tbody>
+                    {% for drug in drug_cure %}
+                        <tr>
+                            <th scope="row">{{drug}}</th>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+
+        {%else%}
+
+            <nav class="navbar navbar-light" style="background-color: #e3f2fd;">
+                <div class="container-fluid">
+                <a class="navbar-brand" href="{{url_for('homebis')}}">MedSearch</a>
+                <form class="d-flex" method="POST">
+                    {{form.hidden_tag()}}
+                    {{form.search(class="form-control")}}
+
+                    {{form.submit(class="btn btn-validate")}}
+
+                </form>
+                </div>
+
+            </nav>
+
+
+            <br>
+            <br>
+            <br>
+            <h1 align="center"> Results for : {{thing}} </h1>
+            <br/><br/><br/>
+
+            <div class="container-ben">
+
+                <table class="table" style="width:50%">
+                    <thead class="thead-dark">
+                    <tr>
+                        <th scope="col">Synonyms</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+
+                        {% for syno in synonyms %}
+                        <tr>
+                            <th scope="row">{{syno}}</th>
+                        </tr>
+                        {% endfor %}
+
+                    </tbody>
+                </table>
+                <table class="table" style="width:50%">
+                    <thead class="thead-dark">
+                    <tr>
+                        <th scope="col">Causing diseases</th>
+                        <th scope="col">hpo/omim</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                        {% for dis in dis_cause_both %}
+                                <th scope="row">{{dis}}</th>
+                                <th scope="row">both</th>
+                            </tr>
+                        {% endfor %}
+                        {% for hpo in hpo %}
+                        <tr>
+                            <th scope="row">{{hpo}}</th>
+                            <th scope="row">hpo</th>
+                        </tr>
+                    {% endfor %}
+                    {% for omim in omim %}
+                    <tr>
+                        <th scope="row">{{omim}}</th>
+                        <th scope="row">omim</th>
+                    </tr>
+                {% endfor %}
+                    </tbody>
+                </table>
+
+                <table class="table" style="width:50%">
+                    <thead class="thead-dark">
+                    <tr>
+                        <th scope="col">Causing drugs</th>
+                        <th scope="col">drugbank/sider</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                        {% for drug in drug_cause_both %}
+                            <tr>
+                                <th scope="row">{{drug}}</th>
+                                <th scope="row">both</th>
+                            </tr>
+                        {% endfor %}
+                        {% for drugbank in drug_cause_drugbank %}
+                        <tr>
+                            <th scope="row">{{drugbank}}</th>
+                            <th scope="row">drugbank</th>
+                        </tr>
+                    {% endfor %}
+                    {% for sider in drug_cause_sider %}
+                    <tr>
+                        <th scope="row">{{sider}}</th>
+                        <th scope="row">sider</th>
+                    </tr>
+                {% endfor %}
+                    </tbody>
+                </table>
+
+                <table class="table" style="width:50%">
+                    <thead class="thead-dark">
+                    <tr>
+                        <th scope="col">Curing drugs</th>
+                        <th scope="col">drugbank/sider</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                        {% for drug in drug_cure_both %}
+                            <tr>
+                                <th scope="row">{{drug}}</th>
+                                <th scope="row">both</th>
+                            </tr>
+                        {% endfor %}
+                        {% for drugbank in drug_cure_drugbank %}
+                        <tr>
+                            <th scope="row">{{drugbank}}</th>
+                            <th scope="row">drugbank</th>
+                        </tr>
+                    {% endfor %}
+                    {% for sider in drug_cure_sider %}
+                    <tr>
+                        <th scope="row">{{sider}}</th>
+                        <th scope="row">sider</th>
+                    </tr>
+                {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+    {% endif %}
+
+
+
+
+
+
+
+
+    {% else %}
+    <nav class="navbar navbar-light" style="background-color: #e3f2fd;">
+        <div class="container-fluid">
+        <a class="navbar-brand" href="{{url_for('homebis')}}">MedSearch</a>
+        </div>
+    </nav>
+
+
+    <br>
+    <br>
+    <br>
+    <h1 align="center"> Here, you can search for one or several symptoms : </h1>
+    <br>
+    <br>
+    <div class="container-benji">
+        <form class="d-flex" method="POST">
+            {{form.hidden_tag()}}
+            {{form.search(class="form-control")}}
+
+            {{form.submit(class="btn btn-validate")}}
+
+        </form>
+    </div>
+    {% endif %}
+
+
+{% endblock %}

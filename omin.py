@@ -2,12 +2,20 @@ from csv import reader
 import re
 
 
-def loading_omim():
+def au(disease_label):  # #614920 PEROXISOME BIOGENESIS DISORDER 14B; PEX14B into Peroxisome biogenesis disorder 14b; pex14b
+    acc = re.search(r"(#|%)*[0-9]{3,6} ", disease_label)
+    if acc:
+        disease_label = disease_label[acc.regs[0][1]:]
+    disease_label = disease_label[0].upper() + disease_label[1:].lower()
+    return str(disease_label)
+
+
+def loading_omim(path):
     print("Start loading Omim\n")
     tuple_omim = []  # Dictionary in which there will be illness with signs and symptoms
     aux = 0
     acc = ""
-    with open('data/OMIM/omim.txt') as f:
+    with open(path + '/OMIM/omim.txt') as f:
         for line in f:
             if line == "*FIELD* TI\n":
                 aux = 1  # state in which we know that we will read the name of the illness
@@ -15,7 +23,7 @@ def loading_omim():
                 aux = 2  # state in which we know that we will read signs and symptoms of the illness
             elif aux == 1:
                 illness = line
-                illness = re.sub(r"\n", "", illness)
+                illness = au(re.sub(r"\n", "", illness))
                 aux = 0
             elif aux == 2:
                 if line[:7] == "*FIELD*":  # We have seen all the signs and symptoms
@@ -27,6 +35,7 @@ def loading_omim():
                     acc += line  # We store all the signs and symptoms
     print("End loading Omim\n")
     return tuple_omim
+
 
 """
 with open('data/OMIM/omim_onto.csv') as csvDataFile:

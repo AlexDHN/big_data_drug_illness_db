@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+
+{% block content%}
+    <nav class="navbar navbar-light" style="background-color: #e3f2fd;">
+        <div class="container-fluid">
+        <a class="navbar-brand" href="{{url_for('homebis')}}">MedSearch</a>
+        </div>
+    </nav>
+
+    <span id="research" class="visually-hidden">{{research}}</span>
+    <span id="bool" class="visually-hidden">{{bool}}</span>
+
+    <script>
+        document.getElementById("bool").value=0;
+        var bool=document.getElementById("bool").value;
+        console.log("bool="+bool);
+        function goTo() {
+            var answer = document.getElementById("search").value;
+            console.log(answer);
+            let bnj = "/results/"+answer;
+            document.getElementById("submit").href=bnj;
+            document.getElementById("form").action=bnj;
+        }
+        function activate() {
+            document.getElementById("bool").value=1;
+            var bool=document.getElementById("bool").value;
+            console.log("bool="+bool);
+        }
+    </script>
+
+
+    <br>
+    <br>
+    <br>
+    <h1 align="center"> Here, you can search for one or several symptoms : </h1>
+    <br>
+    <br>
+    <div class="container-benji">
+        <form class="d-flex" method="POST" id="form" action="">
+            <input class="form-control me-2" type="search" placeholder="Search" aria-label="Search" id="search">
+            <button id="submit" class="btn btn-outline-success" type="button" onclick="goTo()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-search" viewBox="0 0 16 16">
+                    <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+                </svg>
+            </button>
+        </form>
+    </div>
+
+{% endblock %}

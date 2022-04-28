@@ -9,25 +9,35 @@ from sider import loading_sider_toxicity_cid, loading_sider_indications_cid
 from stitch import loading_stitch_chemical_sources, loading_stitch_br
 
 spark = SparkSession.builder.getOrCreate()
-sc = spark.sparkContext
-# sc = SparkContext("local", "Project_DB")
-tuple_drugbank_indication, tuple_drug_bank_toxicity = loading_drugbank()  # tuples in which there will be drug which indication and # toxicity
 
-rdd_drug_indication = sc.parallelize(tuple_drugbank_indication, 3)
-rdd_drug_toxicity = sc.parallelize(tuple_drug_bank_toxicity, 3)
-rdd_illness_symptoms = sc.parallelize(loading_omim(), 3)  # Pair RDD of illness with their symptoms
-rdd_hpo_id_symptoms = sc.parallelize(loading_hpo_obo(), 3).groupByKey().mapValues(
-    list)  # Pair RDD id with associate symptoms
-rdd_hpo_annotations_id_illness = sc.parallelize(loading_hpo_annotations(), 3).groupByKey().mapValues(
-    list)  # Pair RDD id with associate illness
-rdd_indication_sider = sc.parallelize(loading_sider_indications_cid(), 3).distinct().mapValues(
-    lambda x: x.lower()).groupByKey().mapValues(list)  # Rdd of sider database with sidecompoun_id , list of indication
-rdd_toxicity_sider = sc.parallelize(loading_sider_toxicity_cid(), 3).distinct().mapValues(
-    lambda x: x.lower())  # Rdd of sider database with sidecompoun_id, list of toxicity
-rdd_stitch_CID_to_ATC = sc.parallelize(loading_stitch_chemical_sources(), 3)
-rdd_stitch_ATC_to_drug = sc.parallelize(loading_stitch_br(), 3)
-df_stitch_CID_to_ATC = spark.createDataFrame(rdd_stitch_CID_to_ATC, schema='cid_1 string, atc string')
-df_stitch_ATC_to_drug = spark.createDataFrame(rdd_stitch_ATC_to_drug, schema='atc string, drug string')
+
+def load_data(path):
+    sc = spark.sparkContext
+    # sc = SparkContext("local", "Project_DB")
+    tuple_drugbank_indication, tuple_drug_bank_toxicity = loading_drugbank(
+        path)  # tuples in which there will be drug which indication and # toxicity
+    rdd_drug_indication = sc.parallelize(tuple_drugbank_indication, 3)
+    rdd_drug_toxicity = sc.parallelize(tuple_drug_bank_toxicity, 3)
+    rdd_illness_symptoms = sc.parallelize(loading_omim(path), 3)  # Pair RDD of illness with their symptoms
+    rdd_hpo_id_symptoms = sc.parallelize(loading_hpo_obo(path), 3).groupByKey().mapValues(
+        list)  # Pair RDD id with associate symptoms
+    rdd_hpo_annotations_id_illness = sc.parallelize(loading_hpo_annotations(path), 3).groupByKey().mapValues(
+        list)  # Pair RDD id with associate illness
+    rdd_indication_sider = sc.parallelize(loading_sider_indications_cid(), 3).distinct().mapValues(lambda
+                                                                                                       x: x.lower())  # .groupByKey().mapValues(list)  # Rdd of sider database with sidecompoun_id , list of indication
+    rdd_toxicity_sider = sc.parallelize(loading_sider_toxicity_cid(), 3).distinct().mapValues(
+        lambda x: x.lower())  # Rdd of sider database with sidecompoun_id, list of toxicity
+    rdd_stitch_CID_to_ATC = sc.parallelize(loading_stitch_chemical_sources(path), 3)
+    rdd_stitch_ATC_to_drug = sc.parallelize(loading_stitch_br(path), 3)
+    df_stitch_CID_to_ATC = spark.createDataFrame(rdd_stitch_CID_to_ATC, schema='cid_1 string, atc string')
+    df_stitch_CID_to_ATC_aux = spark.createDataFrame(rdd_stitch_CID_to_ATC.map(lambda tup: (tup[0][:12], tup[1])),
+                                                     schema='cid_1 string, atc string')
+    df_stitch_ATC_to_drug = spark.createDataFrame(rdd_stitch_ATC_to_drug, schema='atc string, drug string')
+
+    return rdd_drug_indication, rdd_drug_toxicity, rdd_illness_symptoms, rdd_hpo_id_symptoms, rdd_hpo_annotations_id_illness, rdd_indication_sider, rdd_toxicity_sider, df_stitch_CID_to_ATC, df_stitch_CID_to_ATC_aux, df_stitch_ATC_to_drug
+
+
+# rdd_drug_indication, rdd_drug_toxicity, rdd_illness_symptoms, rdd_hpo_id_symptoms, rdd_hpo_annotations_id_illness, rdd_indication_sider, rdd_toxicity_sider, df_stitch_CID_to_ATC, df_stitch_CID_to_ATC_aux, df_stitch_ATC_to_drug = load_data("C:/Users/Alexandre/Documents/Cour_Telecom/GMD/gmd_dhenin_jurczack_leana/data")
 
 
 def show_rdd(rdd):  # Just to see what there is in rdd
@@ -36,10 +46,40 @@ def show_rdd(rdd):  # Just to see what there is in rdd
         print(i)
 
 
-def get_illness_and_synonyms_from_hpo(
-        symptom):  # for a symptoms we give corresponding illness from hpo and all synonyms of this symptom
-    aux = rdd_hpo_id_symptoms.filter(lambda tup: [match for match in tup[1] if re.search(rf'\b{symptom}\b',
-                                                                                         match)] != [])  # Mean that we take the id and synonyms if we find one corresponding in the list of synonyms
+def find_etoile(word):  # In a symptom like like head* return position of * ie 4
+    n = len(word)
+    for i in range(n):
+        if word[i] == '*':
+            return i
+    return -1
+
+
+def adapt_regex(symptom):  # return the regex corresponding to head* * for instance
+    regex_word = r'\b[^\s]*\b'
+    words = re.split(r"\s", symptom)
+    regex = ""
+    l = len(words)
+    for i in range(l):
+        aux = find_etoile(words[i])
+        if words[i] == '*':
+            regex += regex_word
+            if i != l - 1:
+                regex += " "
+        elif aux == -1:
+            regex += words[i]
+            if i != l - 1:
+                regex += " "
+        else:
+            regex += rf"\b{words[i][0:aux]}[^\s]*{words[i][aux + 1:]}\b"
+            if i != l - 1:
+                regex += " "
+    return rf"{regex}"
+
+
+def get_illness_and_synonyms_from_hpo(symptom, rdd_hpo_id_symptoms,
+                                      rdd_hpo_annotations_id_illness):  # for a symptoms we give corresponding illness from hpo and all synonyms of this symptom
+    #  aux = rdd_hpo_id_symptoms.filter(lambda tup: [match for match in tup[1] if re.search(adapt_regex(symptom), match)] != [])  # Mean that we take the id and synonyms if we find one corresponding in the list of synonyms
+    aux = rdd_hpo_id_symptoms.filter(lambda tup: [match for match in tup[1] if re.search(rf'\b{symptom}\b', match)] != [])  # Mean that we take the id and synonyms if we find one corresponding in the list of synonyms
     all_id = aux.keys().collect()  # We get all the id of illness with symptoms associate
     symptoms = aux.values().collect()  # list of list of all synonyms of the symptoms
     #  symptoms = [x for lst in symptoms for x in lst]
@@ -57,18 +97,39 @@ def get_illness_and_synonyms_from_hpo(
     return illness, all_symptoms
 
 
-def get_drug_from_drugbank(symptom):  # for a given symptoms we give drug with this toxicity
+def get_drug_from_drugbank(symptom, rdd_drug_toxicity):  # for a given symptoms we give drug with this toxicity
     return rdd_drug_toxicity.filter(lambda tup: re.search(rf'\b{symptom}\b', tup[1])).keys().collect()
 
 
-def get_illness_from_omim(symptom):  # for a symptoms we give corresponding illness from omim
+def get_indication_from_drugbank(symptom,
+                                 rdd_drug_indication):  # # for a given symptom we give drug indicate to this symptom
+    return rdd_drug_indication.filter(lambda tup: re.search(rf'\b{symptom}\b', tup[1])).keys().collect()
+
+
+def get_illness_from_omim(symptom, rdd_illness_symptoms):  # for a symptoms we give corresponding illness from omim
     return rdd_illness_symptoms.filter(lambda tup: re.search(rf'\b{symptom}\b', tup[1])).keys().collect()
 
 
-def get_drug_from_sider(symptom):  # for a given symptoms we give drug with this toxicity
-    df_sider = spark.createDataFrame(rdd_toxicity_sider.filter(lambda tup: re.search(rf'\b{symptom}\b', tup[1])),
+def get_drug_from_sider(symptom, rdd_toxicity_sider, df_stitch_CID_to_ATC,
+                        df_stitch_ATC_to_drug):  # for a given symptoms we give drug with this toxicity
+    #   df_sider = spark.createDataFrame(rdd_toxicity_sider.filter(lambda tup: re.search(rf'\b{symptom}\b', tup[1])), schema='cid_0 string, sy string').distinct()
+    df_sider = spark.createDataFrame(rdd_toxicity_sider.filter(lambda tup: symptom == tup[1]),
                                      schema='cid_0 string, sy string').distinct()
+    #   df_sider.show()
     aux = df_sider.join(df_stitch_CID_to_ATC, df_sider.cid_0 == df_stitch_CID_to_ATC.cid_1, 'inner')
+    #   aux.show()
+    return df_stitch_ATC_to_drug.join(aux, aux.atc == df_stitch_ATC_to_drug.atc, "inner").select(
+        "drug").distinct().select('drug').rdd.flatMap(lambda x: x).collect()
+
+
+def get_indication_from_sider(symptom, rdd_indication_sider, df_stitch_CID_to_ATC_aux,
+                              df_stitch_ATC_to_drug):  # for a given symptom we give drug indicate to this symptom
+    #  df_sider = spark.createDataFrame(rdd_indication_sider.filter(lambda tup: re.search(rf'\b{symptom}\b', tup[1])), schema='cid_0 string, sy string').distinct()
+    df_sider = spark.createDataFrame(rdd_indication_sider.filter(lambda tup: symptom == tup[1]),
+                                     schema='cid_0 string, sy string').distinct()
+    #  df_sider.show()
+    aux = df_sider.join(df_stitch_CID_to_ATC_aux, df_sider.cid_0 == df_stitch_CID_to_ATC_aux.cid_1, 'inner')
+    #  aux.show()
     return df_stitch_ATC_to_drug.join(aux, aux.atc == df_stitch_ATC_to_drug.atc, "inner").select(
         "drug").distinct().select('drug').rdd.flatMap(lambda x: x).collect()
 
@@ -99,34 +160,194 @@ def get_result_by_rdd(sympt):
         if element not in sider_drug:
             sider_drug.append(element)
     sider_drug = [x for lst in sider_drug for x in lst]
-    return hpo_illness, omim_illness, drugbank_drug, sider_drug
+    return all_symptoms, hpo_illness, omim_illness, drugbank_drug, sider_drug
 
 
-def get_res(sympt):
-    hpo_illness, all_symptoms = get_illness_and_synonyms_from_hpo(sympt.lower())
+def get_res(sympt, rdd_drug_indication, rdd_drug_toxicity, rdd_illness_symptoms, rdd_hpo_id_symptoms,
+            rdd_hpo_annotations_id_illness, rdd_indication_sider, rdd_toxicity_sider, df_stitch_CID_to_ATC,
+            df_stitch_CID_to_ATC_aux, df_stitch_ATC_to_drug):
+    hpo_illness, all_symptoms = get_illness_and_synonyms_from_hpo(sympt.lower(), rdd_hpo_id_symptoms,
+                                                                  rdd_hpo_annotations_id_illness)
     # hpo_illness = [x for lst in b for x in lst]  # just reformat data
     omim_illness = []
     drugbank_drug = []
     sider_drug = []
+    drugbank_indication = []
+    sider_indication = []
     for symptom in all_symptoms:  # For all symptoms we are looking for correspondence
-        omim_illness.extend(get_illness_from_omim(symptom))
-        drugbank_drug.extend(get_drug_from_drugbank(symptom))
-        #sider_drug.extend(get_drug_from_sider(symptom))
+        omim_illness.extend(get_illness_from_omim(symptom, rdd_illness_symptoms))
+        drugbank_drug.extend(get_drug_from_drugbank(symptom, rdd_drug_toxicity))
+        sider_drug.extend(get_drug_from_sider(symptom, rdd_toxicity_sider, df_stitch_CID_to_ATC, df_stitch_ATC_to_drug))
+        drugbank_indication.extend(get_indication_from_drugbank(symptom, rdd_drug_indication))
+        sider_indication.extend(
+            get_indication_from_sider(symptom, rdd_indication_sider, df_stitch_CID_to_ATC_aux, df_stitch_ATC_to_drug))
     omim_illness = list(set(omim_illness))
     drugbank_drug = list(set(drugbank_drug))
-    #sider_drug = list(set(sider_drug))
-    return hpo_illness, omim_illness, drugbank_drug, sider_drug
+    sider_drug = list(set(sider_drug))
+    drugbank_indication = list(set(drugbank_indication))
+    sider_indication = list(set(sider_indication))
+    return all_symptoms, hpo_illness, omim_illness, drugbank_drug, sider_drug, drugbank_indication, sider_indication
 
 
-symptom = "myocardial infarction"
-c, all_symptoms = get_illness_and_synonyms_from_hpo("coma")
-a, b, c, d = get_result_by_rdd(symptom)
-a, b, c, d = get_res(symptom)
-print("over")
+def intersection(lst1, lst2):  # Intersection of two list
+    return list(set(lst1) & set(lst2))
 
-# A chier
+
+def union(lst1, lst2):  # Union of two list
+    print(list(set(lst1) | set(lst2)))
+    return list(set(lst1) | set(lst2))
+
+
+def fusion(res1, condi, res2):
+    print("FUSIONNNNNNN")
+    print(condi)
+    print(res1)
+    print(res2)
+    if condi == "AND":
+        return intersection(res1[1] + res1[2], res2[1] + res2[2]), intersection(res1[3] + res1[4],
+                                                                                res2[3] + res2[4]), intersection(
+            res1[5] + res1[6], res2[5] + res2[6])
+    else:
+        return union(res1[1] + res1[2], res2[1] + res2[2]), union(res1[3] + res1[4], res2[3] + res2[4]), union(
+            res1[5] + res1[6], res2[5] + res2[6])
+
+
+def get_and_or(symptom, rdd_drug_indication, rdd_drug_toxicity, rdd_illness_symptoms, rdd_hpo_id_symptoms,
+               rdd_hpo_annotations_id_illness, rdd_indication_sider, rdd_toxicity_sider, df_stitch_CID_to_ATC,
+               df_stitch_CID_to_ATC_aux, df_stitch_ATC_to_drug):
+    r0 = r"(AND|OR)"  # Regex that match AND in a AND b
+    r1 = r"^[^(AND|OR)]*"  # Regex that match a in a AND b
+    r2 = r"(?<= AND ).*"  # Regex that match b in a AND b
+    r3 = r"(?<= OR ).*"  # Regex that match b in a OR b
+    condi = re.search(r0, symptom)
+    if condi:
+        if condi.group() == "AND":
+            return fusion(get_res(re.search(r1, symptom).group()[:-1], rdd_drug_indication, rdd_drug_toxicity,
+                                  rdd_illness_symptoms, rdd_hpo_id_symptoms, rdd_hpo_annotations_id_illness,
+                                  rdd_indication_sider, rdd_toxicity_sider, df_stitch_CID_to_ATC,
+                                  df_stitch_CID_to_ATC_aux, df_stitch_ATC_to_drug), condi.group(),
+                          get_and_or(re.search(r2, symptom).group(), rdd_drug_indication, rdd_drug_toxicity,
+                                     rdd_illness_symptoms, rdd_hpo_id_symptoms, rdd_hpo_annotations_id_illness,
+                                     rdd_indication_sider, rdd_toxicity_sider, df_stitch_CID_to_ATC,
+                                     df_stitch_CID_to_ATC_aux, df_stitch_ATC_to_drug))
+        else:
+            return fusion(get_res(re.search(r1, symptom).group()[:-1], rdd_drug_indication, rdd_drug_toxicity,
+                                  rdd_illness_symptoms, rdd_hpo_id_symptoms, rdd_hpo_annotations_id_illness,
+                                  rdd_indication_sider, rdd_toxicity_sider, df_stitch_CID_to_ATC,
+                                  df_stitch_CID_to_ATC_aux,
+                                  df_stitch_ATC_to_drug), condi.group(),
+                          get_and_or(re.search(r3, symptom).group(), rdd_drug_indication, rdd_drug_toxicity,
+                                     rdd_illness_symptoms, rdd_hpo_id_symptoms, rdd_hpo_annotations_id_illness,
+                                     rdd_indication_sider, rdd_toxicity_sider, df_stitch_CID_to_ATC,
+                                     df_stitch_CID_to_ATC_aux,
+                                     df_stitch_ATC_to_drug))
+    else:
+        return get_res(symptom, rdd_drug_indication, rdd_drug_toxicity, rdd_illness_symptoms, rdd_hpo_id_symptoms,
+                       rdd_hpo_annotations_id_illness, rdd_indication_sider, rdd_toxicity_sider, df_stitch_CID_to_ATC,
+                       df_stitch_CID_to_ATC_aux, df_stitch_ATC_to_drug)
+
+
+#rdd_drug_indication, rdd_drug_toxicity, rdd_illness_symptoms, rdd_hpo_id_symptoms, rdd_hpo_annotations_id_illness, rdd_indication_sider, rdd_toxicity_sider, df_stitch_CID_to_ATC, df_stitch_CID_to_ATC_aux, df_stitch_ATC_to_drug = load_data("C:/Users/Alexandre/Documents/Cour_Telecom/GMD/gmd_dhenin_jurczack_leana/data")
+
+#a, b = get_illness_and_synonyms_from_hpo("hypo*",rdd_hpo_id_symptoms, rdd_hpo_annotations_id_illness)
+
+# all_symptoms, a_hpo_illness, a_omim_illness, a_drugbank_toxicity, a_sider_toxicity, a_drugbank_indication, a_sider_indication = get_res(("Headache")
+# rep = all_symptoms, a_hpo_illness, a_omim_illness, a_drugbank_toxicity, a_sider_toxicity, a_drugbank_indication, a_sider_indication
+# a, all = get_illness_and_synonyms_from_hpo("Headache")
 
 """
+re.search(rf'\b{symptom}\b', p)
+
+avant = ""
+apres = "lat"
+regex = rf"\b{avant}[^\s]*{apres}\b"
+regex_word = r'\b[^\s]*\b'
+aux = regex + " " + regex_word
+print(aux)
+test = "bolat chocolat au carlat"
+aa = rf'{aux}'
+condi = re.search(rf'{aux}', test)
+if condi:
+    print(condi.group())
+
+w = 'et*lig'
+
+test = "headache"
+test_oui = "tout ce headache je pense c'est que bang et ouai"
+condi = re.search(adapt_regex(test), test_oui)
+if condi:
+    print(condi.group())
+
+def aux(symptom):
+    r0 = r"(AND|OR)"  # Regex that match AND in a AND b
+    r1 = r"^[^(AND|OR)]*"  # Regex that match a in a AND b
+    r2 = r"(?<= AND ).*"  # Regex that match b in a AND b
+    r3 = r"(?<= OR ).*"  # Regex that match b in a OR b
+    condi = re.search(r0, symptom)
+    if condi:
+        if condi.group() == "AND":
+            return fusion(([], ["1","2"], [], [], [], ["5","8"], []), condi.group(), aux(re.search(r2, symptom).group()))
+        else:
+            return fusion(([], ["1","2"], [], [], ["9"], ["5","8"], []), condi.group(), aux(re.search(r3, symptom).group()))
+        # return fusion(get_res(re.search(r1, symptom).group()[:-1], rdd_drug_indication, rdd_drug_toxicity, rdd_illness_symptoms, rdd_hpo_id_symptoms, rdd_hpo_annotations_id_illness, rdd_indication_sider, rdd_toxicity_sider, df_stitch_CID_to_ATC, df_stitch_CID_to_ATC_aux, df_stitch_ATC_to_drug), condi.group(), aux(re.search(r2, symptom).group(), rdd_drug_indication, rdd_drug_toxicity, rdd_illness_symptoms, rdd_hpo_id_symptoms, rdd_hpo_annotations_id_illness, rdd_indication_sider, rdd_toxicity_sider, df_stitch_CID_to_ATC, df_stitch_CID_to_ATC_aux, df_stitch_ATC_to_drug))
+    else:
+        print(symptom)
+        return [], [], [], [], [], [], []
+        # return get_res(symptom, rdd_drug_indication, rdd_drug_toxicity, rdd_illness_symptoms, rdd_hpo_id_symptoms, rdd_hpo_annotations_id_illness, rdd_indication_sider, rdd_toxicity_sider, df_stitch_CID_to_ATC, df_stitch_CID_to_ATC_aux, df_stitch_ATC_to_drug)
+
+
+a = "small penis OR long penis"
+a = aux(a)
+
+aaa = aux("small penis OR long penis", rdd_drug_indication, rdd_drug_toxicity, rdd_illness_symptoms,
+          rdd_hpo_id_symptoms, rdd_hpo_annotations_id_illness, rdd_indication_sider, rdd_toxicity_sider,
+          df_stitch_CID_to_ATC, df_stitch_CID_to_ATC_aux, df_stitch_ATC_to_drug)
+
+
+def aux(symptom):
+    r0 = r"(AND|OR)"  # Regex that match AND in a AND b
+    r1 = r"^[^(AND|OR)]*"  # Regex that match a in a AND b
+    r2 = r"(?<= AND ).*"  # Regex that match b in a AND b
+    r3 = r"(?<= OR ).*"  # Regex that match b in a OR b
+    condi = re.search(r0, symptom)
+    if condi:
+        if condi.group() == "AND":
+            return fusion(([], [], [], [], [], [], []), condi.group(), aux(re.search(r2, symptom).group()))
+        else:
+            return fusion(([], [], [], [], [], [], []), condi.group(), aux(re.search(r3, symptom).group()))
+        # return fusion(get_res(re.search(r1, symptom).group()[:-1], rdd_drug_indication, rdd_drug_toxicity, rdd_illness_symptoms, rdd_hpo_id_symptoms, rdd_hpo_annotations_id_illness, rdd_indication_sider, rdd_toxicity_sider, df_stitch_CID_to_ATC, df_stitch_CID_to_ATC_aux, df_stitch_ATC_to_drug), condi.group(), aux(re.search(r2, symptom).group(), rdd_drug_indication, rdd_drug_toxicity, rdd_illness_symptoms, rdd_hpo_id_symptoms, rdd_hpo_annotations_id_illness, rdd_indication_sider, rdd_toxicity_sider, df_stitch_CID_to_ATC, df_stitch_CID_to_ATC_aux, df_stitch_ATC_to_drug))
+    else:
+        print(symptom)
+        return [], [], [], [], [], [], []
+        # return get_res(symptom, rdd_drug_indication, rdd_drug_toxicity, rdd_illness_symptoms, rdd_hpo_id_symptoms, rdd_hpo_annotations_id_illness, rdd_indication_sider, rdd_toxicity_sider, df_stitch_CID_to_ATC, df_stitch_CID_to_ATC_aux, df_stitch_ATC_to_drug)
+
+a = aux("small penis OR long penis")
+a = "small penis OR long penis"
+r0 = r"(AND|OR)"  # Regex that match AND in a AND b
+r1 = r"^[^(AND|OR)]*"  # Regex that match a in a AND b
+r2 = r"(?<= AND ).*"  # Regex that match b in a AND b
+r3 = r"(?<= OR ).*"  # Regex that match b in a OR b
+
+
+sympto = "Brain tumour"
+sympto = 'gastrointestinal pain'
+sympto = "scrotum"
+
+sympto1 = "myocardial infarction"
+sympto1 = 'shawl scrotum'
+sympto2 = 'heparin-induced thrombocytopenia'
+symp_et = "shawl scrotum OU heparin-induced thrombocytopenia"
+
+aa = aux(symp_et)
+a = get_res(sympto1)
+b = get_res(sympto2)
+
+
+df_sider = spark.createDataFrame(rdd_toxicity_sider.filter(lambda tup: sympto == tup[1]), schema='cid_0 string, sy string').distinct()
+aux = df_sider.join(df_stitch_CID_to_ATC, df_sider.cid_0 == df_stitch_CID_to_ATC.cid_1, 'inner')
+aa = df_stitch_ATC_to_drug.join(aux, aux.atc == df_stitch_ATC_to_drug.atc, "inner").select(
+    "drug").distinct().select('drug').rdd.flatMap(lambda x: x).collect()
+
 def rdd_symptoms_rec(acc1, acc2, acc3, f1, f2, f3, symptoms):
     print(symptoms)
     if len(symptoms) == 0:
@@ -190,7 +411,6 @@ show_rdd(rdd_toxicity_sider)
 
 for i in answer[2]:
     print(i in rep)
-
 
 acc = rdd_hpo_id_symptoms.values().collect()
 for lst in acc:
